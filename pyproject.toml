@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "time-tracker-invoice-generator"
+version = "0.1.0"
+description = "A SaaS application for tracking freelancer billable hours and generating invoices."
+authors = ["Ahmet Kutay Ural"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
