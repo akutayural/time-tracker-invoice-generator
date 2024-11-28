@@ -1,21 +1,18 @@
-import datetime
+from mongoengine import StringField, DateField, ReferenceField, EnumField
 
-from sqlalchemy import String, Date
-from sqlalchemy.orm import mapped_column, Mapped
-
+from app.enums import UserRole, Status
 from app.models.base import Base
 
 
 class User(Base):
-    __tablename__ = "users"
+    meta = {"collection": "users"}
 
-    first_name: Mapped[str] = mapped_column(String(64))
-    last_name: Mapped[str] = mapped_column(String(64))
-    birth_date: Mapped[datetime.date] = mapped_column(Date, nullable=True)
-    email: Mapped[str] = mapped_column(String(320), unique=True)
-    username: Mapped[str] = mapped_column(String(64), unique=True)
-    password: Mapped[str] = mapped_column(String(128))
-
-
-
-
+    first_name = StringField(required=True, max_length=64)
+    last_name = StringField(required=True, max_length=64)
+    birth_date = DateField()
+    email = StringField(required=True, unique=True, max_length=320)
+    username = StringField(required=True, unique=True, max_length=64)
+    password = StringField(required=True, max_length=128)
+    company_id = ReferenceField("Company", required=True)
+    role = EnumField(UserRole, required=True, default=UserRole.TEAM_MEMBER)
+    status = EnumField(Status, required=True, default=Status.ACTIVE)
