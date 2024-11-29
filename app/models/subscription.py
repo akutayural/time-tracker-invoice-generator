@@ -1,16 +1,27 @@
-from mongoengine import DateTimeField, ReferenceField, EnumField
+from datetime import datetime
 
-from app.enums.subscription import SubscriptionPlan
-from app.models.base import Base
-from app.enums import Status
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from app.database.collections import SUBSCRIPTIONS_COLLECTION
 
 
-class Subscription(Base):
-    meta = {"collection": "subscriptions"}  # Collection name for subscriptions
+class Subscription:
+    collection_name = SUBSCRIPTIONS_COLLECTION
 
-    company_id = ReferenceField("Company", required=True)  # Foreign key to Company
-    plan_name = EnumField(SubscriptionPlan, required=True, default=SubscriptionPlan.BASIC)  # Name of the subscription plan
-    start_date = DateTimeField(required=True)  # Subscription start date
-    end_date = DateTimeField(required=True)  # Subscription end date
-    status = EnumField(Status, required=True, default=Status.ACTIVE)  # Subscription status
+    @staticmethod
+    async def find_by_id(db: AsyncIOMotorDatabase, subscription_id: ObjectId):
+        return await db[Subscription.collection_name].find_one({"_id": subscription_id})
 
+    @staticmethod
+    async def insert_subscription(db: AsyncIOMotorDatabase, subscription_data: dict):
+        result = await db[Subscription.collection_name].insert_one(subscription_data)
+        return result.inserted_id
+
+    @staticmethod
+    async def update_subscription(db: AsyncIOMotorDatabase, subscription_id: ObjectId, update_data: dict):
+        return await db[Subscription.collection_name].update_one({"_id": subscription_id}, {"$set": update_data})
+
+    @staticmethod
+    async def delete_subscription(db: AsyncIOMotorDatabase, subscription_id: ObjectId):
+        return await db[Subscription.collection_name].update_one({"_id": subscription_id},
+                                                                 {"$set": {"deleted_at": datetime.utcnow()}})

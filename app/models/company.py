@@ -1,12 +1,27 @@
-from mongoengine import StringField, URLField, ReferenceField
-from app.models.base import Base
+from datetime import datetime
+
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from app.database.collections import COMPANIES_COLLECTION
 
 
-class Company(Base):
-    meta = {"collection": "companies"}  # Specify the collection name for companies
+class Company:
+    collection_name = COMPANIES_COLLECTION
 
-    name = StringField(required=True, max_length=128)  # Unique company name
-    email = StringField(required=True, unique=True, max_length=320)  # Email of the company admin
-    company_url = URLField(required=True, max_length=256)  # Official URL of the company
-    logo_url = URLField(required=False, max_length=256)  # Optional logo URL for the company
-    subscription = ReferenceField("Subscription", required=True)  # Reference to the company's subscription
+    @staticmethod
+    async def find_by_id(db: AsyncIOMotorDatabase, company_id: ObjectId):
+        return await db[Company.collection_name].find_one({"_id": company_id})
+
+    @staticmethod
+    async def insert_company(db: AsyncIOMotorDatabase, company_data: dict):
+        result = await db[Company.collection_name].insert_one(company_data)
+        return result.inserted_id
+
+    @staticmethod
+    async def update_company(db: AsyncIOMotorDatabase, company_id: ObjectId, update_data: dict):
+        return await db[Company.collection_name].update_one({"_id": company_id}, {"$set": update_data})
+
+    @staticmethod
+    async def delete_company(db: AsyncIOMotorDatabase, company_id: ObjectId):
+        return await db[Company.collection_name].update_one({"_id": company_id},
+                                                            {"$set": {"deleted_at": datetime.utcnow()}})

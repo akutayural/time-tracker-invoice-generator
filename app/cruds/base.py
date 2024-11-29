@@ -1,59 +1,58 @@
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
+from bson.objectid import ObjectId
+from motor.motor_asyncio import AsyncIOMotorCollection
 from pydantic import BaseModel
-from fastapi.encoders import jsonable_encoder
-from mongoengine import Document
 
-ModelType = TypeVar("ModelType", bound=Document)
+ModelType = TypeVar("ModelType", bound=dict)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
 
-class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
-    def __init__(self, model: Type[ModelType]):
+class AsyncCRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+    def __init__(self, collection: AsyncIOMotorCollection):
         """
-        CRUD object with default methods to Create, Read, Update, Delete (CRUD).
+        Async CRUD operations for a MongoDB collection.
 
         **Parameters**
-
-        * `model`: A MongoEngine model class
+        - `collection`: A Motor collection instance.
         """
-        self.model = model
+        self.collection = collection
 
-    def get(self, id: Any) -> Optional[ModelType]:
+    async def get(self, id: Any) -> Optional[ModelType]:
         """Retrieve a single document by ID."""
-        return self.model.objects(id=id).first()
+        document = await self.collection.find_one({"_id": ObjectId(id)})
+        return document
 
-    def get_multi(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
+    async def get_multi(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
         """Retrieve multiple documents with optional pagination."""
-        return list(self.model.objects.skip(skip).limit(limit))
+        cursor = self.collection.find().skip(skip).limit(limit)
+        return [doc async for doc in cursor]
 
-    def create(self, obj_in: CreateSchemaType) -> ModelType:
+    async def create(self, obj_in: CreateSchemaType) -> ModelType:
         """Create a new document."""
-        obj_in_data = jsonable_encoder(obj_in)
-        db_obj = self.model(**obj_in_data)  # Create a new instance of the model
-        db_obj.save()  # Save to the database
-        return db_obj
+        obj_in_data = obj_in.dict()
+        result = await self.collection.insert_one(obj_in_data)
+        obj_in_data["_id"] = result.inserted_id
+        return obj_in_data
 
-    def update(
+    async def update(
         self,
-        db_obj: ModelType,
+        id: Any,
         obj_in: Union[UpdateSchemaType, Dict[str, Any]],
-    ) -> ModelType:
+    ) -> Optional[ModelType]:
         """Update an existing document."""
-        obj_data = jsonable_encoder(db_obj)
-        if isinstance(obj_in, dict):
-            update_data = obj_in
-        else:
-            update_data = obj_in.dict(exclude_unset=True)
-        for field in update_data:
-            if field in obj_data:
-                setattr(db_obj, field, update_data[field])
-        db_obj.save()  # Save the changes to the database
-        return db_obj
+        update_data = obj_in.dict(exclude_unset=True) if isinstance(obj_in, BaseModel) else obj_in
+        result = await self.collection.update_one(
+            {"_id": ObjectId(id)},
+            {"$set": update_data},
+        )
+        if result.modified_count == 1:
+            return await self.get(id=id)
+        return None
 
-    def remove(self, id: Any) -> Optional[ModelType]:
+    async def remove(self, id: Any) -> Optional[ModelType]:
         """Delete a document by ID."""
-        obj = self.model.objects(id=id).first()
-        if obj:
-            obj.delete()  # Delete the document
-        return obj
+        document = await self.get(id=id)
+        if document:
+            await self.collection.delete_one({"_id": ObjectId(id)})
+        return document

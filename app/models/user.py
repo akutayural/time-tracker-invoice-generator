@@ -1,18 +1,26 @@
-from mongoengine import StringField, DateField, ReferenceField, EnumField
+from datetime import datetime
 
-from app.enums import UserRole, Status
-from app.models.base import Base
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from app.database.collections import USERS_COLLECTION
 
 
-class User(Base):
-    meta = {"collection": "users"}
+class User:
+    collection_name = USERS_COLLECTION
 
-    first_name = StringField(required=True, max_length=64)
-    last_name = StringField(required=True, max_length=64)
-    birth_date = DateField()
-    email = StringField(required=True, unique=True, max_length=320)
-    username = StringField(required=True, unique=True, max_length=64)
-    password = StringField(required=True, max_length=128)
-    company_id = ReferenceField("Company", required=True)
-    role = EnumField(UserRole, required=True, default=UserRole.TEAM_MEMBER)
-    status = EnumField(Status, required=True, default=Status.ACTIVE)
+    @staticmethod
+    async def find_by_id(db: AsyncIOMotorDatabase, user_id: ObjectId):
+        return await db[User.collection_name].find_one({"_id": user_id})
+
+    @staticmethod
+    async def insert_user(db: AsyncIOMotorDatabase, user_data: dict):
+        result = await db[User.collection_name].insert_one(user_data)
+        return result.inserted_id
+
+    @staticmethod
+    async def update_user(db: AsyncIOMotorDatabase, user_id: ObjectId, update_data: dict):
+        return await db[User.collection_name].update_one({"_id": user_id}, {"$set": update_data})
+
+    @staticmethod
+    async def delete_user(db: AsyncIOMotorDatabase, user_id: ObjectId):
+        return await db[User.collection_name].update_one({"_id": user_id}, {"$set": {"deleted_at": datetime.utcnow()}})
